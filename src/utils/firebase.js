@@ -5,7 +5,7 @@ import { getStorage } from "firebase/storage";
 
 // Firebase Project A (Authentication & Firestore)
 const firebaseConfigAuth = {
-  apiKey: "AIzaSyBMnINLGA3KSFlvni4DrRFTE2sUMbDxRYc",
+  apiKey: process.env.GOOGLE_API_KEY,
   authDomain: "shudu-report.firebaseapp.com",
   projectId: "shudu-report",
   storageBucket: "shudu-report.firebasestorage.app",
@@ -16,7 +16,7 @@ const firebaseConfigAuth = {
 
 // Firebase Project B (Storage)
 const firebaseConfigStorage = {
-  apiKey: "AIzaSyDDCzPsz-Qst1A8uJAwBq5mrZZDYRUEhC0",
+  apiKey: process.env.GOOGLE_API_KEY1,
 
   authDomain: "carerunners-bdd1a.firebaseapp.com",
 
