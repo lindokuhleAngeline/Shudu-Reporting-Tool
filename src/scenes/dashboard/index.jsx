@@ -21,7 +21,7 @@ const Dashboard = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const navigate = useNavigate();
-  const [ setUsers] = useState([]);
+  const [setUsers] = useState([]);
   const [boards, setBoards] = useState([]);
   const [userTasks, setUserTasks] = useState([]);
   const [user, setUser] = useState({ firstName: "", surname: "" });
@@ -94,7 +94,7 @@ const Dashboard = () => {
     };
 
     fetchData();
-  }, [currentUser]);
+  }, [currentUser, backgroundImages, setUsers]);
 
   // Group tasks by user and select the most recent board for each user
   const groupTasksByUser = (boards, users) => {
@@ -174,7 +174,7 @@ const Dashboard = () => {
     };
 
     fetchUserData();
-  }, []);
+  }, [currentUser]); // Add currentUser as a dependency
 
   return (
     <Box m="20px" height="90vh" display="flex" flexDirection="column" overflow="auto">
@@ -182,7 +182,7 @@ const Dashboard = () => {
       <Box display="flex" justifyContent="space-between" alignItems="center">
         <Header
           title="SHUDU CONNECTIONS"
-          subtitle={`Welcome to reporting tool, ${user.firstName} ${user.surname}`}
+          subtitle={`Welcome To Reporting Tool: ${user.firstName} ${user.surname}`}
         />
         <Box>
           <Button
