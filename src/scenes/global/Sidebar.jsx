@@ -1,4 +1,4 @@
-import { React, useState, useEffect } from "react";
+import {  useState, useEffect } from "react";
 import { ProSidebar, Menu, MenuItem } from "react-pro-sidebar";
 import { Box, IconButton, Typography, useTheme } from "@mui/material";
 import { Link } from "react-router-dom";
@@ -6,22 +6,16 @@ import "react-pro-sidebar/dist/css/styles.css";
 import { tokens } from "../../theme";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
-import ContactsOutlinedIcon from "@mui/icons-material/ContactsOutlined";
 import ReceiptOutlinedIcon from "@mui/icons-material/ReceiptOutlined";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
-import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
-import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 import PieChartOutlineOutlinedIcon from "@mui/icons-material/PieChartOutlineOutlined";
-import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
-import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import { auth, db } from "../../utils/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import PolicyOutlinedIcon from "@mui/icons-material/PolicyOutlined";
-import LeaveFormModal from './LeaveFormModal';
 
 const Item = ({ title, to, icon, selected, setSelected }) => {
   const theme = useTheme();
@@ -57,24 +51,21 @@ const Sidebar = () => {
   const [selected, setSelected] = useState("Dashboard");
   const [userData, setUserData] = useState({
     name: "Loading...",
-    email: "Loading...",
+    position: "Loading...",
   });
   const [isCEO, setIsCEO] = useState(false);
-  const [isLeaveFormOpen, setIsLeaveFormOpen] = useState(false);
-  const handleLeaveFormClick = () => {
-    setIsLeaveFormOpen(true);
-  };
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         // Set CEO status directly from auth email
         setIsCEO(user.email === "lucky@shuduconnections.com");
-  
+
         try {
           const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
-  
+
           if (userDocSnap.exists()) {
             const data = userDocSnap.data();
             setUserData({
@@ -97,6 +88,8 @@ const Sidebar = () => {
             name: "User Name",
             position: "Position Not Set",
           });
+        } finally {
+          setIsLoading(false); // Stop loading
         }
       } else {
         // Handle case where user is not authenticated
@@ -104,12 +97,17 @@ const Sidebar = () => {
           name: "User Name",
           position: "Position Not Set",
         });
+        setIsLoading(false); // Stop loading
       }
     });
-  
+
     // Cleanup the listener on component unmount
     return () => unsubscribe();
   }, []);
+
+  if (isLoading) {
+    return <Typography>Loading...</Typography>; // Show a loading spinner or text
+  }
 
   return (
     <Box
@@ -183,7 +181,6 @@ const Sidebar = () => {
                   {userData.position}
                 </Typography>
               </Box>
-
             </Box>
           )}
 

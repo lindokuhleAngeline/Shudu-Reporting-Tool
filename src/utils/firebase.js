@@ -1,3 +1,5 @@
+
+
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -5,30 +7,24 @@ import { getStorage } from "firebase/storage";
 
 // Firebase Project A (Authentication & Firestore)
 const firebaseConfigAuth = {
-  apiKey: process.env.GOOGLE_API_KEY,
-  authDomain: "shudu-report.firebaseapp.com",
-  projectId: "shudu-report",
-  storageBucket: "shudu-report.firebasestorage.app",
-  messagingSenderId: "634378997852",
-  appId: "1:634378997852:web:fbcf992fc91c1726dcd699",
-  measurementId: "G-JQP9KT53PV",
+  apiKey: process.env.REACT_APP_API_KEY,
+  authDomain: process.env.REACT_APP_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_APP_ID,
+  measurementId: process.env.REACT_APP_MEASUREMENT_ID,
 };
 
 // Firebase Project B (Storage)
 const firebaseConfigStorage = {
-  apiKey: process.env.GOOGLE_API_KEY1,
-
-  authDomain: "carerunners-bdd1a.firebaseapp.com",
-
-  projectId: "carerunners-bdd1a",
-
-  storageBucket: "carerunners-bdd1a.appspot.com",
-
-  messagingSenderId: "1047923854966",
-
-  appId: "1:1047923854966:web:6220e42db55c0166f6d957",
-
-  measurementId: "G-S1DD8BDNZK",
+  apiKey: process.env.REACT_APP_SECONDARY_API_KEY,
+  authDomain: process.env.REACT_APP_SECONDARY_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_SECONDARY_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_SECONDARY_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_SECONDARY_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_SECONDARY_APP_ID,
+  measurementId: process.env.REACT_APP_SECONDARY_MEASUREMENT_ID,
 };
 
 // Initialize Firebase Apps

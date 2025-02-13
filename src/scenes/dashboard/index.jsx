@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -9,14 +9,7 @@ import {
   CardContent,
 } from "@mui/material";
 import { tokens } from "../../theme";
-import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
-import EmailIcon from "@mui/icons-material/Email";
-import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
-import PersonAddIcon from "@mui/icons-material/PersonAdd";
-import TrafficIcon from "@mui/icons-material/Traffic";
 import Header from "../../components/Header";
-import LineChart from "../../components/LineChart";
-import StatBox from "../../components/StatBox";
 import { useNavigate } from "react-router-dom";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import { collection, getDocs, doc, getDoc, query, where } from "firebase/firestore";
@@ -28,7 +21,7 @@ const Dashboard = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
+  const [ setUsers] = useState([]);
   const [boards, setBoards] = useState([]);
   const [userTasks, setUserTasks] = useState([]);
   const [user, setUser] = useState({ firstName: "", surname: "" });
