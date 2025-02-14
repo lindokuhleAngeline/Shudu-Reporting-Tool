@@ -21,11 +21,12 @@ const Dashboard = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const navigate = useNavigate();
-  const [setUsers] = useState([]);
+  const [users, setUsers] = useState([]);
   const [boards, setBoards] = useState([]);
   const [userTasks, setUserTasks] = useState([]);
   const [user, setUser] = useState({ firstName: "", surname: "" });
-  const [currentUser] = useAuthState(auth);
+  const [currentUser, loading] = useAuthState(auth);
+  const [boardBackgrounds, setBoardBackgrounds] = useState({});
 
   // Background images array
   const backgroundImages = [
@@ -55,11 +56,38 @@ const Dashboard = () => {
     "/assets/bg25.jpg",
   ];
 
+  // Initialize board backgrounds
+  useEffect(() => {
+    const storedBackgrounds = localStorage.getItem('boardBackgrounds');
+    if (storedBackgrounds) {
+      setBoardBackgrounds(JSON.parse(storedBackgrounds));
+    }
+  }, []);
+
+  // Get or create a consistent background for a board
+  const getBoardBackground = (boardId) => {
+    if (!boardBackgrounds[boardId]) {
+      const newBackgrounds = {
+        ...boardBackgrounds,
+        [boardId]: backgroundImages[Math.floor(Math.random() * backgroundImages.length)]
+      };
+      setBoardBackgrounds(newBackgrounds);
+      localStorage.setItem('boardBackgrounds', JSON.stringify(newBackgrounds));
+      return newBackgrounds[boardId];
+    }
+    return boardBackgrounds[boardId];
+  };
+
   // Fetch users and boards from Firestore
   useEffect(() => {
     const fetchData = async () => {
       try {
-        if (!currentUser) return;
+        // Wait for auth to initialize and check if user is logged in
+        if (loading) return;
+        if (!currentUser?.uid) {
+          navigate('/login');
+          return;
+        }
 
         // Fetch users
         const usersRef = collection(db, "users");
@@ -79,9 +107,7 @@ const Dashboard = () => {
         const boardsSnapshot = await getDocs(boardsQuery);
         const boardsData = boardsSnapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
-          backgroundImage:
-            backgroundImages[Math.floor(Math.random() * backgroundImages.length)],
+          ...doc.data()
         }));
         setBoards(boardsData);
 
@@ -90,62 +116,66 @@ const Dashboard = () => {
         setUserTasks(groupedTasks);
       } catch (err) {
         console.error("Error fetching data:", err);
+        // Handle error appropriately
       }
     };
 
     fetchData();
-  }, [currentUser, backgroundImages, setUsers]);
+  }, [currentUser, loading, navigate]);
 
   // Group tasks by user and select the most recent board for each user
   const groupTasksByUser = (boards, users) => {
+    if (!Array.isArray(boards) || !Array.isArray(users)) return [];
+  
     const grouped = {};
-
-    // Initialize all users with default values
-    users.forEach((user) => {
-      grouped[user.id] = {
-        user: `${user.firstName[0]} ${user.surname}`,
-        boardName: "No boards",
-        deadline: "No deadline",
-      };
-    });
-
-    // Update users with their boards and deadlines
+  
+    // Initialize users with their boards and deadlines
     boards.forEach((board) => {
+      if (!board || !board.createdBy) return;
+  
       const user = users.find((user) => user.id === board.createdBy);
       if (user) {
         grouped[user.id] = {
-          user: `${user.firstName[0]} ${user.surname}`,
-          boardName: board.boardName,
-          deadline: board.deadline,
+          user: `${user.firstName || "Unknown"} ${user.surname || "User"}`,
+          boardName: board.boardName || "Unnamed Board",
+          deadline: board.deadline || "No deadline",
         };
       }
     });
-
+  
+    // Convert grouped users into an array
     return Object.values(grouped);
   };
+  
 
   // Format timestamp to a readable date
   const formatDate = (deadline) => {
     if (!deadline || deadline === "No deadline") return "No deadline";
 
     let date;
-    if (typeof deadline === "string") {
-      date = new Date(deadline);
-    } else if (deadline.toDate) {
-      date = deadline.toDate();
-    } else {
+    try {
+      if (typeof deadline === "string") {
+        date = new Date(deadline);
+      } else if (deadline.toDate) {
+        date = deadline.toDate();
+      } else {
+        return "Invalid deadline";
+      }
+
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch (error) {
+      console.error("Error formatting date:", error);
       return "Invalid deadline";
     }
-
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
   };
 
   // Truncate long board names
   const truncateBoardName = (name, maxLength = 20) => {
+    if (!name) return "Unnamed Board";
     if (name.length > maxLength) {
       return `${name.substring(0, maxLength)}...`;
     }
@@ -156,9 +186,11 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        if (!auth) throw new Error("Firebase auth is not initialized");
-        const currentUser = auth.currentUser;
-        if (!currentUser) return;
+        if (loading) return;
+        if (!currentUser?.uid) {
+          setUser({ firstName: "", surname: "" });
+          return;
+        }
 
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists()) {
@@ -170,11 +202,24 @@ const Dashboard = () => {
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
+        setUser({ firstName: "", surname: "" });
       }
     };
 
     fetchUserData();
-  }, [currentUser]); // Add currentUser as a dependency
+  }, [currentUser, loading]);
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+        <Typography>Loading...</Typography>
+      </Box>
+    );
+  }
+
+  if (!currentUser) {
+    return null; // or redirect to login
+  }
 
   return (
     <Box m="20px" height="90vh" display="flex" flexDirection="column" overflow="auto">
@@ -184,7 +229,7 @@ const Dashboard = () => {
           title="SHUDU CONNECTIONS"
           subtitle={`Welcome To Reporting Tool: ${user.firstName} ${user.surname}`}
         />
-        <Box>
+        {/* <Box>
           <Button
             variant="contained"
             color="secondary"
@@ -202,7 +247,7 @@ const Dashboard = () => {
           >
             View More
           </Button>
-        </Box>
+        </Box> */}
       </Box>
 
       {/* BOARDS GRID */}
@@ -229,7 +274,7 @@ const Dashboard = () => {
                 boxShadow: 5,
                 cursor: "pointer",
               },
-              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${board.backgroundImage})`,
+              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${getBoardBackground(board.id)})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
               color: "white",
