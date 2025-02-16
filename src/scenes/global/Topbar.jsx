@@ -20,7 +20,6 @@ import {
   DarkModeOutlined,
   LightModeOutlined,
   NotificationsOutlined,
-  SettingsOutlined,
   PersonOutlined,
   EditOutlined,
   LogoutOutlined,
@@ -34,27 +33,12 @@ import { useTheme } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
-  getDocs,
   onSnapshot,
   doc,
   getDoc,
 } from "firebase/firestore";
 import { db, auth } from "../../utils/firebase";
-import LoginForm from "../Login";
 import { onAuthStateChanged } from "firebase/auth";
-
-const handleMenuClose = () => {
-  // Perform any logout-related tasks here (e.g., clearing tokens, session data)
-  console.log("User logged out");
-  // Redirect to the login page
-  navigate("/Login");
-};
-
-const onLogout = () => {
-  // Clear authentication state (e.g., localStorage, context, etc.)
-  localStorage.removeItem("isAuthenticated");
-  navigate("/Login"); // Redirect to login page
-};
 
 const Topbar = ({ onLogout }) => {
   const theme = useTheme();
@@ -65,8 +49,6 @@ const Topbar = ({ onLogout }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
   const [notifications, setNotifications] = useState([]);
-  const [boards, setBoards] = useState([]);
-  const [users, setUsers] = useState({});
   const [unreadNotifications, setUnreadNotifications] = useState(new Set());
   const [user, setUser] = useState({
     firstName: "",
@@ -77,10 +59,22 @@ const Topbar = ({ onLogout }) => {
   const open = Boolean(anchorEl);
   const notificationOpen = Boolean(notificationAnchorEl);
 
+  // Fetch user details on page refresh or auth state change
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
         navigate("/Login", { replace: true });
+      } else {
+        // Fetch user details from Firestore
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUser({
+            firstName: userData.firstName,
+            surname: userData.surname,
+            email: userData.email,
+          });
+        }
       }
     });
 
@@ -92,12 +86,35 @@ const Topbar = ({ onLogout }) => {
       setAuthError(null);
       await auth.signOut();
       handleMenuClose();
-      // Navigation will be handled by the auth state change listener
     } catch (error) {
       setAuthError(error.message);
-      // Optionally show error to user through a toast/alert
       console.error("Error logging out:", error);
     }
+  };
+
+  const handleMenuClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleNotificationClick = (event) => {
+    setNotificationAnchorEl(event.currentTarget);
+  };
+
+  const handleNotificationClose = () => {
+    setNotificationAnchorEl(null);
+  };
+
+  const getInitials = (firstName, surname) => {
+    return `${firstName?.charAt(0) || ''}${surname?.charAt(0) || ''}`;
+  };
+
+  const handleEditProfile = () => {
+    // Add your logic for editing the profile here
+    console.log("Edit Profile clicked");
   };
 
   const groupNotificationsByDate = (notifications) => {
@@ -151,201 +168,52 @@ const Topbar = ({ onLogout }) => {
   };
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      const usersRef = collection(db, "users");
-      const snapshot = await getDocs(usersRef);
-      const usersData = {};
-      snapshot.docs.forEach((doc) => {
-        usersData[doc.id] = doc.data();
-      });
-      setUsers(usersData);
-    };
+    const unsubscribe = onSnapshot(collection(db, "boards"), async (snapshot) => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
 
-    fetchUsers();
-  }, []);
+      for (const change of snapshot.docChanges()) {
+        if (change.type === "added") {
+          const newBoard = {
+            ...change.doc.data(),
+            memberIds: change.doc.data().memberIds || [],
+          };
 
-  useEffect(() => {
-    const fetchBoards = async () => {
-      const boardsRef = collection(db, "boards");
-      const snapshot = await getDocs(boardsRef);
-      const boardsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        memberIds: doc.data().memberIds || [],
-      }));
-      setBoards(boardsData);
-    };
+          if (newBoard.memberIds?.includes(currentUser.uid) && newBoard.createdBy !== currentUser.uid) {
+            const creatorDoc = await getDoc(doc(db, "users", newBoard.createdBy));
+            const creatorName = creatorDoc.exists()
+              ? creatorDoc.data().firstName
+              : "Unknown User";
 
-    fetchBoards();
-
-    const unsubscribe = onSnapshot(
-      collection(db, "boards"),
-      async (snapshot) => {
-        for (const change of snapshot.docChanges()) {
-          if (change.type === "added") {
-            const newBoard = {
-              ...change.doc.data(),
-              memberIds: change.doc.data().memberIds || [],
+            const notification = {
+              id: `board-${newBoard.id}-${Date.now()}`,
+              message: `${creatorName} added you to ${newBoard.boardName}`,
+              type: "board",
+              read: false,
+              timestamp: new Date().getTime(),
+              boardId: newBoard.id, // Add boardId to the notification
             };
-            const currentUser = auth.currentUser;
 
-            if (
-              newBoard.memberIds?.includes(currentUser.uid) &&
-              newBoard.createdBy !== currentUser.uid
-            ) {
-              const creatorDoc = await getDoc(
-                doc(db, "users", newBoard.createdBy)
-              );
-              const creatorName = creatorDoc.exists()
-                ? creatorDoc.data().firstName
-                : "Unknown User";
-
-              const notification = {
-                id: `board-${newBoard.id}-${Date.now()}`,
-                message: `${creatorName} added you to ${newBoard.boardName}`,
-                type: "board",
-                read: false,
-                timestamp: new Date().getTime(),
-              };
-
-              setNotifications((prev) => [...prev, notification]);
-              setUnreadNotifications((prev) =>
-                new Set(prev).add(notification.id)
-              );
-            }
+            setNotifications((prev) => [...prev, notification]);
+            setUnreadNotifications((prev) => new Set(prev).add(notification.id));
           }
         }
       }
-    );
+    });
 
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const checkDeadlines = () => {
-      const currentUser = auth.currentUser;
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      boards.forEach((board) => {
-        if (board.memberIds?.includes(currentUser.uid)) {
-          const deadline = board.deadline.toDate();
-          const deadlineDate = new Date(
-            deadline.getFullYear(),
-            deadline.getMonth(),
-            deadline.getDate()
-          );
-
-          if (deadlineDate.getTime() === tomorrow.getTime()) {
-            const notification = {
-              id: `${board.id}-tomorrow`,
-              message: `Tomorrow's deadline: ${board.boardName}`,
-              type: "deadline",
-              read: false,
-              timestamp: new Date().getTime(),
-            };
-            setNotifications((prev) => {
-              if (!prev.some((n) => n.id === notification.id)) {
-                return [...prev, notification];
-              }
-              return prev;
-            });
-            setUnreadNotifications((prev) =>
-              new Set(prev).add(notification.id)
-            );
-          }
-
-          if (deadlineDate.getTime() === today.getTime()) {
-            const notification = {
-              id: `${board.id}-today`,
-              message: `Today's deadline: ${board.boardName}`,
-              type: "deadline",
-              read: false,
-              timestamp: new Date().getTime(),
-            };
-            setNotifications((prev) => {
-              if (!prev.some((n) => n.id === notification.id)) {
-                return [...prev, notification];
-              }
-              return prev;
-            });
-            setUnreadNotifications((prev) =>
-              new Set(prev).add(notification.id)
-            );
-          }
-        }
-      });
-    };
-
-    const interval = setInterval(checkDeadlines, 1000 * 60 * 60);
-    checkDeadlines();
-
-    return () => clearInterval(interval);
-  }, [boards]);
-
-  useEffect(() => {
-    const interval = setInterval(reclassifyNotifications, 1000 * 60 * 60);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return;
-
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUser({
-            firstName: userData.firstName || "",
-            surname: userData.surname || "",
-            email: userData.email || "",
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      }
-    };
-
-    fetchUserData();
-  }, []);
-
-  const getInitials = (firstName, surname) => {
-    const firstInitial = firstName?.charAt(0)?.toUpperCase() || "";
-    const surnameInitial = surname?.charAt(0)?.toUpperCase() || "";
-    return `${firstInitial}${surnameInitial}`;
-  };
-
-  const handleMenuClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleEditProfile = () => {
-    navigate("/form");
-    handleMenuClose();
-  };
-
-  const handleNotificationClick = (event) => {
-    setNotificationAnchorEl(event.currentTarget);
-  };
-
-  const handleNotificationClose = () => {
-    setNotificationAnchorEl(null);
-  };
-
-  const handleNotificationItemClick = (id) => {
+  const handleNotificationItemClick = (id, boardId) => {
     setUnreadNotifications((prev) => {
       const newSet = new Set(prev);
       newSet.delete(id);
       return newSet;
     });
+
+    if (boardId) {
+      navigate(`/boards/${boardId}`); // Navigate to the board's page
+    }
   };
 
   const groupedNotifications = groupNotificationsByDate(notifications);
@@ -378,9 +246,6 @@ const Topbar = ({ onLogout }) => {
           <Badge badgeContent={unreadNotifications.size} color="error">
             <NotificationsOutlined />
           </Badge>
-        </IconButton>
-        <IconButton>
-          <SettingsOutlined />
         </IconButton>
         <IconButton
           onClick={handleMenuClick}
@@ -433,15 +298,13 @@ const Topbar = ({ onLogout }) => {
                     </Typography>
                     <List dense>
                       {groupNotifications.map((notification) => {
-                        const isUnread = unreadNotifications.has(
-                          notification.id
-                        );
+                        const isUnread = unreadNotifications.has(notification.id);
                         return (
                           <ListItem
                             key={notification.id}
                             button
                             onClick={() =>
-                              handleNotificationItemClick(notification.id)
+                              handleNotificationItemClick(notification.id, notification.boardId)
                             }
                             sx={{
                               mb: 1,
@@ -526,7 +389,7 @@ const Topbar = ({ onLogout }) => {
             horizontal: "right",
           }}
         >
-          <Box p={2} width={200}>
+          <Box p={2} width={250}>
             <Box display="flex" alignItems="center" gap={1} mb={2}>
               <Avatar>{getInitials(user.firstName, user.surname)}</Avatar>
               <Box>
@@ -538,7 +401,6 @@ const Topbar = ({ onLogout }) => {
                 </Typography>
               </Box>
             </Box>
-
             <Button
               variant="outlined"
               startIcon={<EditOutlined />}
@@ -556,14 +418,7 @@ const Topbar = ({ onLogout }) => {
             >
               Edit Profile
             </Button>
-
             <Divider />
-
-            {/* <MenuItem onClick={handleMenuClose}>
-              <SettingsOutlined sx={{ mr: 1 }} />
-              <Typography>Settings</Typography>
-            </MenuItem> */}
-
             <MenuItem onClick={onLogout}>
               <LogoutOutlined sx={{ mr: 1 }} />
               <Typography>Logout</Typography>

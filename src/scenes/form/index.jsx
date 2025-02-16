@@ -34,7 +34,8 @@ const ProfileForm = () => {
             surname: "",
             email: user.email,
             contact: "",
-            homeAddress: "",
+
+
             department: "",
             position: "",
           });
@@ -95,7 +96,7 @@ const ProfileForm = () => {
           handleBlur,
           handleChange,
           handleSubmit,
-          isSubmitting
+          isSubmitting,
         }) => (
           <form onSubmit={handleSubmit}>
             <Box
@@ -158,19 +159,8 @@ const ProfileForm = () => {
                 helperText={touched.contact && errors.contact}
                 sx={{ gridColumn: "span 4" }}
               />
-              <TextField
-                fullWidth
-                variant="filled"
-                type="text"
-                label="Home Address"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.homeAddress}
-                name="homeAddress"
-                error={!!touched.homeAddress && !!errors.homeAddress}
-                helperText={touched.homeAddress && errors.homeAddress}
-                sx={{ gridColumn: "span 4" }}
-              />
+
+
               <TextField
                 fullWidth
                 variant="filled"
@@ -216,7 +206,8 @@ const ProfileForm = () => {
 };
 
 
-const phoneRegExp = /^((\+[1-9]{1,4}[ -]?)|(\([0-9]{2,3}\)[ -]?)|([0-9]{2,4})[ -]?)*?[0-9]{3,4}[ -]?[0-9]{3,4}$/;
+const phoneRegExp =
+  /^((\+[1-9]{1,4}[ -]?)|(\([0-9]{2,3}\)[ -]?)|([0-9]{2,4})[ -]?)*?[0-9]{3,4}[ -]?[0-9]{3,4}$/;
 
 
 const checkoutSchema = yup.object().shape({
@@ -227,10 +218,14 @@ const checkoutSchema = yup.object().shape({
     .string()
     .matches(phoneRegExp, "Phone number is not valid")
     .required("required"),
-  homeAddress: yup.string().required("required"),
   department: yup.string().required("required"),
   position: yup.string().required("required"),
 });
 
 
 export default ProfileForm;
+
+
+
+
+

@@ -275,13 +275,13 @@ const Sidebar = () => {
               <Typography>Download Leave Form</Typography>
             </MenuItem>
 
-            <Item
+            {/* <Item
               title="Logout"
               to="/"
               icon={<LogoutOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
-            />
+            /> */}
 
             <Typography
               variant="h6"
