@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import  { useState } from "react";
 import {
   Box,
   Button,
@@ -39,6 +39,7 @@ const companyEmails = [
   "sizwe@shuduconnections.com",
   "dimakatso@shuduconnections.com",
   "dimpho@shuduconnections.com",
+  "zinhle@shuduconnections.com",
 ];
 
 const SignUp = ({ onSignupSuccess }) => {
@@ -55,7 +56,7 @@ const SignUp = ({ onSignupSuccess }) => {
         position: userData.position,
         email: userData.email,
         contact: userData.contact,
-        // homeAddress: userData.homeAddress,
+        role:"employee",
         createdAt: new Date(),
       });
     } catch (error) {
@@ -328,19 +329,7 @@ const SignUp = ({ onSignupSuccess }) => {
                   helperText={touched.contact && errors.contact}
                   sx={textFieldSx}
                 />
-                {/* <TextField
-                  fullWidth
-                  variant="filled"
-                  type="text"
-                  label="Home Address"
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  value={values.homeAddress}
-                  name="homeAddress"
-                  error={!!touched.homeAddress && !!errors.homeAddress}
-                  helperText={touched.homeAddress && errors.homeAddress}
-                  sx={textFieldSx}
-                /> */}
+                
                 <Box display="grid" gap="16px" gridTemplateColumns="1fr">
                   <TextField
                     fullWidth
