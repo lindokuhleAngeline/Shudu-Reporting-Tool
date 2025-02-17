@@ -19,8 +19,6 @@ import { collection, getDocs } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 
-
-
 const Calendar = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode) || {
@@ -34,8 +32,6 @@ const Calendar = () => {
   const [loading, setLoading] = useState(true);
 
 
-
-
   useEffect(() => {
     const fetchBoards = async (userId) => {
       try {
@@ -43,11 +39,8 @@ const Calendar = () => {
         const querySnapshot = await getDocs(boardsRef);
 
 
-
-
-        const today = new Date().toISOString().split("T")[0];
-
-
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
 
         const events = querySnapshot.docs
@@ -55,23 +48,30 @@ const Calendar = () => {
           .filter((board) =>
             board.members.some((member) => member.id === userId)
           )
-          .filter((board) => board.status !== "complete") // Skip "complete" boards
           .map((board) => {
-            const eventDate = board.deadline.toDate().toISOString().split("T")[0];
+            if (!board.deadline) return null;
 
 
-
-
+            // Convert Firestore timestamp to Date object
+            const deadline = board.deadline.toDate();
+           
+            // Create the event with the full date (including time)
             return {
               id: board.id,
               title: board.boardName,
-              date: eventDate,
-              backgroundColor: eventDate === today ? colors.redAccent[500] : getEventColor(board.status),
-              className: eventDate === today ? "blink-event" : "", // Apply blinking effect for today's events
+              date: deadline, // Use the full date object instead of just the date string
+              backgroundColor: isSameDay(deadline, today) && board.status !== "completed"
+                ? colors.redAccent[500]
+                : getEventColor(board.status),
+              className:
+                isSameDay(deadline, today) &&
+                board.status !== "completed"
+                  ? "blink-event"
+                  : "",
+              allDay: true, // Set to false if you want to show specific times
             };
-          });
-
-
+          })
+          .filter(Boolean);
 
 
         setCurrentEvents(events);
@@ -81,8 +81,6 @@ const Calendar = () => {
         setLoading(false);
       }
     };
-
-
 
 
     const auth = getAuth();
@@ -97,45 +95,60 @@ const Calendar = () => {
   }, []);
 
 
+  // Helper function to compare dates
+  const isSameDay = (date1, date2) => {
+    return (
+      date1.getFullYear() === date2.getFullYear() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate()
+    );
+  };
 
 
   const getEventColor = (status) => {
     switch (status) {
       case "in-progress":
         return colors.blueAccent[500];
-      case "pending":
+      case "To DO":
         return colors.yellowAccent[500];
       case "urgent":
         return colors.redAccent[500];
+      case "completed":
+        return colors.greenAccent[500];
       default:
         return colors.greenAccent[500];
     }
   };
 
 
-
-
   const handleDateClick = (selected) => {
-    const title = prompt("Please enter a new title for your event");
-    const calendarApi = selected.view.calendar;
-    calendarApi.unselect();
+    // const title = prompt("Please enter a new title for your event");
+    // const calendarApi = selected.view.calendar;
+    // calendarApi.unselect();
 
 
+    // if (title) {
+    //   const eventDate = new Date(selected.startStr);
+    //   const today = new Date();
+    //   today.setHours(0, 0, 0, 0);
 
 
-    if (title) {
-      calendarApi.addEvent({
-        id: `${selected.dateStr}-${title}`,
-        title,
-        start: selected.startStr,
-        end: selected.endStr,
-        allDay: selected.allDay,
-        backgroundColor: colors.greenAccent[500], // Default color for new events
-      });
-    }
+    //   const newEvent = {
+    //     id: `${selected.dateStr}-${title}`,
+    //     title,
+    //     date: eventDate,
+    //     backgroundColor: isSameDay(eventDate, today)
+    //       ? colors.redAccent[500]
+    //       : colors.greenAccent[500],
+    //     className: isSameDay(eventDate, today) ? "blink-event" : "",
+    //     allDay: true,
+    //   };
+
+
+    //   setCurrentEvents((prev) => [...prev, newEvent]);
+    //   calendarApi.addEvent(newEvent);
+    // }
   };
-
-
 
 
   const handleEventClick = (selected) => {
@@ -144,11 +157,12 @@ const Calendar = () => {
         `Are you sure you want to delete the event '${selected.event.title}'`
       )
     ) {
+      setCurrentEvents((prev) =>
+        prev.filter((event) => event.id !== selected.event.id)
+      );
       selected.event.remove();
     }
   };
-
-
 
 
   if (loading) {
@@ -160,17 +174,8 @@ const Calendar = () => {
   }
 
 
-
-
-  if (!currentEvents.length) {
-    return (
-      <Box m="20px">
-        <Typography>No events found for this user.</Typography>
-      </Box>
-    );
-  }
-
-
+ 
+ 
 
 
   return (
@@ -178,9 +183,6 @@ const Calendar = () => {
       <Header title="Calendar" subtitle="Full Calendar Interactive Page" />
 
 
-
-
-      {/* Add the blinking animation inside the component */}
       <Box component="style">
         {`
           @keyframes blinker {
@@ -188,19 +190,23 @@ const Calendar = () => {
               opacity: 0;
             }
           }
+          .blink-event {
+            animation: blinker 1s linear infinite;
+          }
         `}
       </Box>
 
 
-
-
       <Box display="flex" justifyContent="space-between">
-        {/* CALENDAR SIDEBAR */}
         <Box
           flex="1 1 20%"
           backgroundColor={colors.primary[400]}
           p="15px"
           borderRadius="4px"
+          sx={{
+            maxHeight: "400px",
+            overflowY: "auto",
+          }}
         >
           <Typography variant="h5">Events</Typography>
           <List>
@@ -232,12 +238,9 @@ const Calendar = () => {
         </Box>
 
 
-
-
-        {/* CALENDAR */}
-        <Box flex="1 1 100%" ml="15px">
+        <Box flex="1 1 100%" ml="50px">
           <FullCalendar
-            height="75vh"
+            height="67vh"
             plugins={[
               dayGridPlugin,
               timeGridPlugin,
@@ -265,6 +268,5 @@ const Calendar = () => {
 };
 
 
-
-
 export default Calendar;
+
