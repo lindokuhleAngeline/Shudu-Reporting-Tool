@@ -229,25 +229,7 @@ const Dashboard = () => {
           title="SHUDU CONNECTIONS"
           subtitle={`Welcome To Reporting Tool: ${user.firstName} ${user.surname}`}
         />
-        {/* <Box>
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<ChevronLeftIcon />}
-            onClick={() => navigate("/boards")}
-            sx={{
-              ml: 2,
-              boxShadow: 3,
-              borderRadius: 2,
-              textTransform: "uppercase",
-              fontWeight: 600,
-              px: 3,
-              py: 1,
-            }}
-          >
-            View More
-          </Button>
-        </Box> */}
+        
       </Box>
 
       {/* BOARDS GRID */}
