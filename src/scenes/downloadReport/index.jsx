@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Card,
@@ -7,7 +7,7 @@ import {
   TextField,
   Button,
   MenuItem,
-  useTheme,
+  // useTheme,
 } from "@mui/material";
 import { Download } from "@mui/icons-material";
 import jsPDF from "jspdf";
@@ -17,7 +17,7 @@ import { db } from "../../utils/firebase";
 
 
 const WeeklyReportDownloader = ({ boards, employees }) => {
-  const theme = useTheme();
+  // const theme = useTheme();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState("");

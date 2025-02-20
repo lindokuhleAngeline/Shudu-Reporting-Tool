@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -14,6 +14,11 @@ import {
   Checkbox,
   CircularProgress,
   Link,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemSecondaryAction,
 } from "@mui/material";
 import {
   DragHandle,
@@ -23,6 +28,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
   Delete as DeleteIcon,
   Description as DocumentIcon,
+  InsertDriveFile as FileIcon,
 } from "@mui/icons-material";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -33,11 +39,24 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
+  arrayUnion,
 } from "firebase/firestore";
 import { db } from "../../utils/firebase";
 // import IconButton from '@mui/material/IconButton';
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import DownloadIcon from "@mui/icons-material/Download";
+//import VisibilityIcon from "@mui/icons-material/Visibility";
+//import DownloadIcon from "@mui/icons-material/Download";
+//import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "../../utils/firebase";
+import DocumentManagement from "../documentManagement";
+import {
+  Visibility as VisibilityIcon,
+  CloudUpload as CloudUploadIcon,
+  Download as DownloadIcon,
+} from "@mui/icons-material";
+import { uploadBytesResumable } from "firebase/storage";
+// import { arrayUnion } from 'firebase/firestore';
+
 
 const backgroundImages = [
   "/assets/bg1.jpg",
@@ -66,6 +85,57 @@ const backgroundImages = [
   "/assets/bg25.jpg",
 ];
 
+// const FileList = ({ documents }) => {
+//   if (!documents || documents.length === 0) return null;
+
+//   return (
+//     <Box sx={{ mt: 2, bgcolor: 'background.paper', borderRadius: 1, overflow: 'hidden' }}>
+//       <List dense>
+//         {documents.map((doc, index) => (
+//           <ListItem key={index} divider={index !== documents.length - 1}>
+//             <ListItemIcon>
+//               <FileIcon />
+//             </ListItemIcon>
+//             <ListItemText
+//               primary={doc.name}
+//               secondary={new Date(doc.uploadedAt).toLocaleDateString()}
+//             />
+//             <ListItemSecondaryAction>
+//               <IconButton
+//                 edge="end"
+//                 onClick={() => {
+//                   window.open(
+//                     `https://docs.google.com/viewer?url=${encodeURIComponent(doc.url)}`,
+//                     "_blank"
+//                   );
+//                 }}
+//                 size="small"
+//               >
+//                 <VisibilityIcon />
+//               </IconButton>
+//               <IconButton
+//                 edge="end"
+//                 onClick={() => {
+//                   const link = document.createElement("a");
+//                   link.href = doc.url;
+//                   link.download = doc.name;
+//                   document.body.appendChild(link);
+//                   link.click();
+//                   document.body.removeChild(link);
+//                 }}
+//                 size="small"
+//                 sx={{ ml: 1 }}
+//               >
+//                 <DownloadIcon />
+//               </IconButton>
+//             </ListItemSecondaryAction>
+//           </ListItem>
+//         ))}
+//       </List>
+//     </Box>
+//   );
+// };
+
 const Task = () => {
   const { boardId } = useParams();
   const navigate = useNavigate();
@@ -87,6 +157,8 @@ const Task = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newChecklistItem, setNewChecklistItem] = useState("");
+  const [documents, setDocuments] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const updateBoardCompletionPercentage = async (percentage) => {
     try {
@@ -120,21 +192,24 @@ const Task = () => {
     return Math.min(percentage, 100);
   };
 
-  const getBoardStatus = () => {
-    if (tasks.doing.length > 0) {
-      return "In Progress";
-    } else if (
-      tasks.done.length ===
+  const getBoardStatus = useCallback(() => {
+    const totalTasks =
       tasks.todo.length +
-        tasks.doing.length +
-        tasks.onHold.length +
-        tasks.done.length
+      tasks.doing.length +
+      tasks.onHold.length +
+      tasks.done.length;
+
+    if (
+      tasks.doing.length > 0 ||
+      (tasks.done.length > 0 && totalTasks > tasks.done.length)
     ) {
+      return "In Progress";
+    } else if (totalTasks > 0 && tasks.done.length === totalTasks) {
       return "Completed";
     } else {
       return "To Do";
     }
-  };
+  }, [tasks]);
 
   useEffect(() => {
     const status = getBoardStatus();
@@ -172,13 +247,8 @@ const Task = () => {
         completionPercentage: data.completionPercentage || 0,
       });
 
-      // Set document URL if it exists
-      if (data.documentURL) {
-        setBoardDocument({
-          url: data.documentURL,
-          name: data.documentURL.split("/").pop(), // Extract filename from URL
-        });
-      }
+      // Set documents
+      setDocuments(data.documents || []);
     } catch (err) {
       console.error("Error fetching board:", err);
       setError("Failed to load board");
@@ -217,6 +287,61 @@ const Task = () => {
       console.error("Error fetching tasks:", err);
       setError("Failed to load tasks");
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribeBoard = onSnapshot(doc(db, "boards", boardId), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setDocuments(data.documents || []);
+        setBoard((prev) => ({
+          ...prev,
+          ...data,
+          documents: data.documents || [],
+        }));
+      }
+    });
+
+    return () => unsubscribeBoard();
+  }, [boardId]);
+
+  const handleDocumentUpload = async (files) => {
+    setIsUploading(true);
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const filename = `${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, `documents/${boardId}/${filename}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        return new Promise((resolve, reject) => {
+          uploadTask.on(
+            "state_changed",
+            null,
+            (error) => reject(error),
+            async () => {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve({
+                name: file.name,
+                url: downloadURL,
+                uploadedAt: new Date().toISOString(),
+              });
+            }
+          );
+        });
+      });
+
+      const uploadedDocs = await Promise.all(uploadPromises);
+
+      const boardRef = doc(db, "boards", boardId);
+      await updateDoc(boardRef, {
+        documents: arrayUnion(...uploadedDocs),
+      });
+    } catch (error) {
+      console.error("Error uploading documents:", error);
+      throw error;
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -370,89 +495,241 @@ const Task = () => {
 
   const getDocumentName = (url) => {
     if (!url) return "";
-  
-    // Decode URL components
-    let decodedUrl = decodeURIComponent(url);
-  
-    // Remove "documents/" or any prefix before the actual file name
-    let fileName = decodedUrl.split("/").pop().split("?")[0];
-  
-    return fileName;
+    try {
+      const decodedUrl = decodeURIComponent(url);
+      return decodedUrl.split("/").pop().split(/[#?]/)[0];
+    } catch (e) {
+      return url.split("/").pop().split(/[#?]/)[0];
+    }
   };
-  
+
   const DocumentDisplay = () => {
-    if (!boardDocument) return null;
-  
-    const documentName = boardDocument.name || getDocumentName(boardDocument.url);
-  
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState(null);
+
+    const handleFileUpload = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      setIsUploading(true);
+      setUploadError(null);
+
+      try {
+        // Create storage reference
+        const storageRef = ref(
+          storage,
+          `documents/${boardId}/${Date.now()}_${file.name}`
+        );
+
+        // Upload file
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            // You can add progress tracking here if needed
+            const progress =
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Upload progress: ", progress);
+          },
+          (error) => {
+            console.error("Error uploading document:", error);
+            setUploadError("Failed to upload document");
+            setIsUploading(false);
+          },
+          async () => {
+            // Get download URL after successful upload
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+            // Update Firestore document
+            const boardRef = doc(db, "boards", boardId);
+            await updateDoc(boardRef, {
+              documentURL: downloadURL,
+            });
+
+            // Update local state
+            setBoardDocument({
+              url: downloadURL,
+              name: file.name,
+            });
+
+            setIsUploading(false);
+          }
+        );
+      } catch (error) {
+        console.error("Error in file upload:", error);
+        setUploadError("Failed to upload document");
+        setIsUploading(false);
+      }
+    };
+
+    const getDocumentName = (url) => {
+      if (!url) return "";
+      try {
+        const decodedUrl = decodeURIComponent(url);
+        return decodedUrl.split("/").pop().split(/[#?]/)[0];
+      } catch (e) {
+        return url.split("/").pop().split(/[#?]/)[0];
+      }
+    };
+
+    if (!boardDocument && !isUploading) return null;
+
     return (
       <Box
         sx={{
-          p: 2,
           mt: 2,
-          mb: 2,
-          display: "flex",
-          alignItems: "center",
-          bgcolor: "background.paper",
+          p: 2,
+          border: "1px solid",
+          borderColor: "divider",
           borderRadius: 1,
-          boxShadow: 1,
-          width: "100%",
-          maxWidth: "600px",
+          bgcolor: "background.paper",
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
         }}
       >
-        <DocumentIcon sx={{ mr: 2, color: "secondary.light" }} />
-        <Typography variant="subtitle1" sx={{ mr: 2 }}>
-          Attached Document:
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{ color: "text.secondary", flexGrow: 1 }}
-        >
-          {documentName}
-        </Typography>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <IconButton
-            onClick={() => {
-              const previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(
-                boardDocument.url
-              )}`;
-              window.open(previewUrl, "_blank");
-            }}
-            sx={{
-              color: "secondary.main",
-              "&:hover": {
-                backgroundColor: "secondary.light",
-                color: "secondary.dark",
-              },
-            }}
-            size="small"
-          >
-            <VisibilityIcon />
-          </IconButton>
-          <IconButton
-            onClick={() => {
-              const link = document.createElement("a");
-              link.href = boardDocument.url;
-              link.download = documentName;
-              link.click();
-            }}
-            sx={{
-              color: "secondary.main",
-              "&:hover": {
-                backgroundColor: "secondary.light",
-                color: "secondary.dark",
-              },
-            }}
-            size="small"
-          >
-            <DownloadIcon />
-          </IconButton>
+        {/* Document Information */}
+        {boardDocument && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <DocumentIcon sx={{ color: "primary.main" }} />
+            <Typography
+              variant="body2"
+              sx={{ flexGrow: 1, overflow: "hidden", textOverflow: "ellipsis" }}
+            >
+              {boardDocument.name || getDocumentName(boardDocument.url)}
+            </Typography>
+
+            {/* Action Buttons */}
+            <Box sx={{ display: "flex", gap: 1 }}>
+              {/* Preview Button */}
+              <IconButton
+                onClick={() => {
+                  const previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(
+                    boardDocument.url
+                  )}`;
+                  window.open(previewUrl, "_blank");
+                }}
+                size="small"
+                sx={{ color: "primary.main" }}
+              >
+                <VisibilityIcon />
+              </IconButton>
+
+              {/* Download Button */}
+              <IconButton
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = boardDocument.url;
+                  link.download =
+                    boardDocument.name || getDocumentName(boardDocument.url);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                size="small"
+                sx={{ color: "success.main" }}
+              >
+                <DownloadIcon />
+              </IconButton>
+            </Box>
+          </Box>
+        )}
+
+        {/* Upload Section */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <input
+            type="file"
+            id="board-document-upload"
+            hidden
+            onChange={handleFileUpload}
+            accept=".pdf,.doc,.docx,.txt"
+          />
+          <label htmlFor="board-document-upload">
+            <IconButton
+              component="span"
+              disabled={isUploading}
+              sx={{
+                color: "secondary.main",
+                "&:hover": {
+                  bgcolor: "secondary.light",
+                },
+              }}
+            >
+              {isUploading ? (
+                <CircularProgress size={24} />
+              ) : (
+                <CloudUploadIcon />
+              )}
+            </IconButton>
+          </label>
+          <Typography variant="body2" color="text.secondary">
+            {isUploading ? "Uploading..." : "Upload Document"}
+          </Typography>
         </Box>
+
+        {/* Error Message */}
+        {uploadError && (
+          <Typography color="error" variant="body2">
+            {uploadError}
+          </Typography>
+        )}
       </Box>
     );
   };
-  
-  
+  //   return (
+  //     <Box sx={{ /* existing styles */ }}>
+  //       {/* existing document info */}
+  //       <Box sx={{ display: "flex", gap: 1 }}>
+  //         {/* Preview and Download buttons */}
+  //         <IconButton
+  //           onClick={() => {
+  //             const previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(
+  //               boardDocument.url
+  //             )}`;
+  //             window.open(previewUrl, "_blank");
+  //           }}
+  //         >
+  //           <VisibilityIcon />
+  //         </IconButton>
+  //         <IconButton
+  //           onClick={() => {
+  //             const link = document.createElement("a");
+  //             link.href = boardDocument.url;
+  //             link.download = documentName;
+  //             link.click();
+  //           }}
+  //         >
+  //           <DownloadIcon />
+  //         </IconButton>
+
+  //         {/* Upload button */}
+  //         <IconButton
+  //           component="label"
+  //           disabled={isUploading}
+  //           sx={{
+  //             color: "secondary.main",
+  //             "&:hover": {
+  //               backgroundColor: !isUploading ? "secondary.light" : undefined,
+  //               color: !isUploading ? "secondary.dark" : undefined,
+  //             },
+  //           }}
+  //         >
+  //           <input
+  //             type="file"
+  //             hidden
+  //             onChange={handleFileUpload}
+  //           />
+  //           {isUploading ? (
+  //             <CircularProgress size={24} />
+  //           ) : (
+  //             <CloudUploadIcon />
+  //           )}
+  //         </IconButton>
+  //       </Box>
+  //     </Box>
+  //   );
+  // };
 
   const renderColumn = (columnId, columnTitle) => (
     <Box
@@ -644,7 +921,13 @@ const Task = () => {
         </Typography>
 
         {/* Document Display */}
-        <DocumentDisplay />
+        <DocumentManagement
+          documents={documents}
+          onUpload={handleDocumentUpload}
+          isUploading={isUploading}
+        />
+
+        {/* <FileList documents={documents} /> */}
 
         <Button
           variant="contained"

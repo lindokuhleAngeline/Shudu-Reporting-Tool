@@ -1,4 +1,4 @@
-import {  useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { ProSidebar, Menu, MenuItem } from "react-pro-sidebar";
 import { Box, IconButton, Typography, useTheme } from "@mui/material";
 import { Link } from "react-router-dom";
@@ -59,8 +59,13 @@ const Sidebar = () => {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        // Set CEO status directly from auth email
-        setIsCEO(user.email === "lucky@shuduconnections.com");
+        // Define privileged emails (case-insensitive check)
+        const privilegedEmails = [
+          "lucky@shuduconnections.com",
+          "lindokuhle@shuduconnections.com",
+          "thulani@shuduconnections.com", // Note: Domain difference
+        ];
+        setIsCEO(privilegedEmails.includes(user.email.toLowerCase()));
 
         try {
           const userDocRef = doc(db, "users", user.uid);
