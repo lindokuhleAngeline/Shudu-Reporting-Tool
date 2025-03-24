@@ -40,6 +40,7 @@ const companyEmails = [
   "dimakatso@shuduconnections.com",
   "dimpho@shuduconnections.com",
   "zinhle@shuduconnections.com",
+  "kabelo@shuduconnections.com",
 ];
 
 const SignUp = ({ onSignupSuccess }) => {
